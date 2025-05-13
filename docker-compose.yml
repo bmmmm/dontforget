@@ -1,0 +1,95 @@
+version: "3.8"
+
+####################
+# Externes Netzwerk#
+####################
+networks:
+  frontend:
+    external: true
+
+  # Internal-only network for CryptPad ⇆ OnlyOffice traffic
+  backend:
+    driver: bridge
+
+####################
+# Named Volumes    #
+####################
+volumes:
+  cryptpad_data:
+  cryptpad_datastore:
+  cryptpad_blob:
+  cryptpad_block:
+  cryptpad_logs:
+
+  # OnlyOffice DS volumes
+  onlyoffice_data:
+  onlyoffice_logs:
+  onlyoffice_forgotten:
+
+####################
+# Services         #
+####################
+services:
+  onlyoffice-document-server:
+    image: onlyoffice/documentserver:8.3.3
+    container_name: onlyoffice-document-server
+    restart: unless-stopped
+
+    # Only on the internal "backend" network
+    networks:
+      - backend
+
+    environment:
+      # Match these in your stack.env and CryptPad config
+      - JWT_ENABLED=true
+      - JWT_SECRET=${ONLYOFFICE_JWT_SECRET}
+      - JWT_HEADER=AuthorizationJwt
+
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_logs:/var/log/onlyoffice
+      # Cache “forgotten” temp files
+      - onlyoffice_forgotten:/var/lib/onlyoffice/documentserver/App_Data/cache/files/forgotten
+
+    # No ports or Traefik labels here—kept completely internal.
+
+  cryptpad:
+    image: "cryptpad/cryptpad:version-2025.3.0"
+    container_name: cryptpad
+    hostname: cryptpad
+    restart: unless-stopped
+
+    env_file:
+      - stack.env
+
+    # Tell CryptPad how to reach OnlyOffice on the backend network
+    environment:
+      - CPAD_ONLYOFFICE_URL=http://onlyoffice-document-server
+      - CPAD_ONLYOFFICE_JWT_ENABLED=true
+      - CPAD_ONLYOFFICE_JWT_SECRET=${ONLYOFFICE_JWT_SECRET}
+
+    volumes:
+      - cryptpad_data:/cryptpad/data
+      - cryptpad_datastore:/cryptpad/datastore
+      - cryptpad_blob:/cryptpad/blob
+      - cryptpad_block:/cryptpad/block
+      - cryptpad_logs:/cryptpad/logs
+      # (uncomment if you have custom JS)
+      # - ./cryptpad_config/config.js:/cryptpad/config/config.js:ro
+      # - ./cryptpad_config/application_config.js:/cryptpad/www/common/customize/application_config.js:ro
+
+    networks:
+      - frontend   # for Traefik / internet
+      - backend    # to talk to OnlyOffice DS
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frontend"
+      - "traefik.http.services.cryptpad.loadbalancer.server.port=3000"
+      - "traefik.http.routers.cryptpad.entrypoints=https"
+      - "traefik.http.routers.cryptpad.rule=Host(`pad.funnysite.com`) || Host(`pad-sandbox.funnysite.com`)"
+      - "traefik.http.routers.cryptpad.tls=true"
+      # COEP/COOP for Cross-Origin isolation
+      - "traefik.http.routers.cryptpad.middlewares=cryptpad-coep"
+      - "traefik.http.middlewares.cryptpad-coep.headers.customResponseHeaders.Cross-Origin-Embedder-Policy=require-corp"
+      - "traefik.http.middlewares.cryptpad-coep.headers.customResponseHeaders.Cross-Origin-Opener-Policy=same-origin"
