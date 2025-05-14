@@ -13,7 +13,7 @@ This repository provides a Docker-based setup to self-host [CryptPad](https://cr
 
 ## 📁 Files Overview
 
-### `docker-compose.yml`
+### `cryptpad onlyoffice traefik/docker-compose.yml`
 Defines the service stack for:
 - `cryptpad`: Main app container
 - `onlyoffice-document-server`: Internal document editing service
@@ -21,7 +21,7 @@ Defines the service stack for:
 - Separate networks for secure traffic routing (frontend/backend)
 - Traefik labels for HTTPS routing and middleware (COOP/COEP)
 
-### `.env`
+### `cryptpad onlyoffice traefik/.ENV`
 Environment configuration used by `docker-compose`. These variables define the domains, OnlyOffice integration, and secrets.
 
 Example:
@@ -32,3 +32,4 @@ CPAD_CONF=/cryptpad/config/config.js
 CPAD_ONLYOFFICE_URL=http://onlyoffice-document-server
 CPAD_INSTALL_ONLYOFFICE=yes
 ONLYOFFICE_JWT_SECRET=JWT_TOKEN
+```
